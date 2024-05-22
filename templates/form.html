@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendor Price Submission Form</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        input[type="number"], input[type="text"], input[type="email"] {
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: calc(100% - 16px); /* Accounting for padding and border */
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #loadingMessage {
+            color: red;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Vendor Price Submission Form</h1>
+    <input type="email" id="vendorEmail" required placeholder="Vendor Email">
+    <button onclick="fetchData()">Fetch Data</button>
+    <div id="loadingMessage" style="display: none;">Loading...</div>
+    <table id="priceTable">
+        <thead>
+            <tr>
+                <th>PR No</th>
+                <th>Item</th>
+                <th>Remark</th>
+                <th>Qty</th>
+                <th>Unit</th>
+                <th>Price per Unit</th>
+                <th>Delivery Period</th>
+                <th>Party Remarks</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Data rows will be dynamically added here -->
+        </tbody>
+    </table>
+    <button onclick="submitPrices()">Submit Prices</button>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var partyEmail = "{{ party_email }}";  // Set by Flask's render_template
+            document.getElementById('vendorEmail').value = partyEmail;
+            fetchData(); // Automatically fetch data when the page loads
+        });
+
+        function fetchData() {
+            var vendorEmail = document.getElementById('vendorEmail').value;
+            document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('loadingMessage').textContent = 'Loading data, please wait...';
+            fetch('/get-data/' + encodeURIComponent(vendorEmail))
+                .then(response => response.json())
+                .then(data => {
+                    buildTable(data);
+                    document.getElementById('loadingMessage').style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Failed to fetch data:', error);
+                    document.getElementById('loadingMessage').textContent = "Failed to fetch data: " + error;
+                });
+        }
+
+        function buildTable(data) {
+            var tbody = document.getElementById('priceTable').getElementsByTagName('tbody')[0];
+            tbody.innerHTML = '';
+            data.forEach(row => {
+                var tr = document.createElement('tr');
+                tr.innerHTML = `<td>${row.pr_no}</td><td>${row.item}</td><td>${row.remark}</td><td>${row.qty}</td><td>${row.unit}</td><td><input type="number" class="price" value="${row.price_per_unit || ''}" step="0.01" data-id="${row.id}"></td><td><input type="text" class="delivery" value="${row.delivery_period || ''}" data-id="${row.id}"></td><td><input type="text" class="remarks" value="${row.party_remarks || ''}" data-id="${row.id}"></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function submitPrices() {
+            var vendorEmail = document.getElementById('vendorEmail').value;
+            var inputs = document.querySelectorAll('#priceTable tbody tr');
+            var prices = Array.from(inputs).map(row => ({
+                id: row.querySelector('.price').getAttribute('data-id'),
+                price: row.querySelector('.price').value,
+                deliveryPeriod: row.querySelector('.delivery').value,
+                partyRemarks: row.querySelector('.remarks').value
+            }));
+
+            document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('loadingMessage').textContent = 'Submitting prices, please wait...';
+            
+            fetch('/submit-prices', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ vendorEmail, prices })
+            })
+            .then(response => response.text())
+            .then(message => {
+                alert(message);
+                document.getElementById('loadingMessage').style.display = 'none';
+            })
+            .catch(error => {
+                console.error('Failed to update prices:', error);
+                document.getElementById('loadingMessage').textContent = 'Failed to update prices: ' + error;
+            });
+        }
+    </script>
+</body>
+</html>
